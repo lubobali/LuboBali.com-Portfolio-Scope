@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Name Test</title>
+</head>
+<body>
+    <h1>Page Name Extraction Test</h1>
+    <div id="output"></div>
+    
+    <script>
+        // Test the page name extraction logic
+        function testPageNameExtraction() {
+            const testCases = [
+                { pathname: '/cvs-contractor-performance', search: '', expected: '/cvs-contractor-performance' },
+                { pathname: '/data-engineer-lubo', search: '', expected: '/data-engineer-lubo' },
+                { pathname: '/about', search: '?ref=linkedin', expected: '/about?ref=linkedin' },
+                { pathname: '/', search: '', expected: 'home' },
+                { pathname: '/index', search: '', expected: 'home' },
+                { pathname: '/project/airbnb-analysis', search: '?tag=data-viz', expected: '/project/airbnb-analysis?tag=data-viz' },
+                { pathname: '/contact/', search: '', expected: '/contact' }
+            ];
+            
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Test Results:</h2>';
+            
+            testCases.forEach((testCase, index) => {
+                // Mock window.location for testing
+                const mockLocation = {
+                    pathname: testCase.pathname,
+                    search: testCase.search
+                };
+                
+                // Apply the new getPageName logic
+                let fullPath = mockLocation.pathname + mockLocation.search;
+                
+                if (fullPath === '/' || fullPath === '' || fullPath === '/index') {
+                    var result = 'home';
+                } else {
+                    var result = fullPath;
+                    if (!result.startsWith('/')) {
+                        result = '/' + result;
+                    }
+                    result = result.replace(/\/+$/, '');
+                    result = result.replace(/\/+/g, '/');
+                }
+                
+                const passed = result === testCase.expected;
+                const status = passed ? '✅ PASS' : '❌ FAIL';
+                
+                output.innerHTML += `
+                    <div style="margin: 10px 0; padding: 10px; border: 1px solid ${passed ? 'green' : 'red'};">
+                        <strong>Test ${index + 1}:</strong> ${status}<br>
+                        <strong>Input:</strong> ${testCase.pathname}${testCase.search}<br>
+                        <strong>Expected:</strong> ${testCase.expected}<br>
+                        <strong>Got:</strong> ${result}
+                    </div>
+                `;
+            });
+        }
+        
+        // Run tests when page loads
+        testPageNameExtraction();
+    </script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+name: Daily Analytics Aggregation
+
+on:
+  schedule:
+    # Run daily at midnight UTC (0:00)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  aggregate-analytics:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run daily aggregation
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      run: |
+        python cron_daily_aggregator.py
+        
+    - name: Log completion
+      run: |
+        echo "✅ Daily analytics aggregation completed at $(date)"

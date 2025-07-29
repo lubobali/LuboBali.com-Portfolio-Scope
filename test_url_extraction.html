@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test URL Extraction</title>
+</head>
+<body>
+    <h1>Testing Page Name Extraction</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Test the page name extraction logic with your actual URLs
+        function getPageName(testUrl) {
+            // Create a URL object to parse the test URL
+            const url = new URL(testUrl);
+            const pathname = url.pathname;
+            const search = url.search;
+            
+            // Combine pathname and search parameters
+            let fullPath = pathname + search;
+            
+            // If it's the root path, return 'home'
+            if (fullPath === '/' || fullPath === '' || fullPath === '/index') {
+                return 'home';
+            }
+            
+            // Keep the original path structure but ensure it starts with /
+            let pageName = fullPath;
+            if (!pageName.startsWith('/')) {
+                pageName = '/' + pageName;
+            }
+            
+            // Only do minimal sanitization - remove trailing slashes and clean up
+            pageName = pageName.replace(/\/+$/, ''); // Remove trailing slashes
+            pageName = pageName.replace(/\/+/g, '/'); // Replace multiple slashes with single slash
+            
+            return pageName || '/unknown';
+        }
+        
+        // Your actual URLs
+        const testUrls = [
+            'https://lubobali.com/',
+            'https://lubobali.com/portfolio',
+            'https://lubobali.com/about-me',
+            'https://lubobali.com/contact',
+            'https://lubobali.com/resume',
+            'https://lubobali.com/cvs-contractor-performance',
+            'https://lubobali.com/cvs-pipeline',
+            'https://lubobali.com/supply-chain',
+            'https://lubobali.com/ibm'
+        ];
+        
+        const resultsDiv = document.getElementById('results');
+        
+        testUrls.forEach(url => {
+            const pageName = getPageName(url);
+            const resultDiv = document.createElement('div');
+            resultDiv.innerHTML = `<strong>URL:</strong> ${url}<br><strong>Extracted page_name:</strong> <code>${pageName}</code><hr>`;
+            resultsDiv.appendChild(resultDiv);
+        });
+        
+        // Test current page
+        const currentPageName = getPageName(window.location.href);
+        const currentDiv = document.createElement('div');
+        currentDiv.innerHTML = `<br><strong>Current Page:</strong> ${window.location.href}<br><strong>Current page_name:</strong> <code>${currentPageName}</code>`;
+        currentDiv.style.backgroundColor = '#f0f0f0';
+        currentDiv.style.padding = '10px';
+        resultsDiv.appendChild(currentDiv);
+    </script>
+</body>
+</html>

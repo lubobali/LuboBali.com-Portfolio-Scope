@@ -110,7 +110,22 @@ def create_tables():
 @app.get("/")
 async def root():
     """Health check endpoint"""
-    return {"message": "Portfolio Click Tracker API is running", "status": "healthy"}
+    print("Health check endpoint called")
+    try:
+        # Quick DB test
+        conn = get_db_connection()
+        conn.close()
+        db_status = "connected"
+    except Exception as e:
+        print(f"DB connection failed in health check: {e}")
+        db_status = "disconnected"
+    
+    return {
+        "message": "Portfolio Click Tracker API is running", 
+        "status": "healthy",
+        "database": db_status,
+        "timestamp": datetime.now().isoformat()
+    }
 
 # Main click tracking endpoint
 @app.post("/api/track-click")

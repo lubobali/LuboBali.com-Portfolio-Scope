@@ -11,7 +11,6 @@ class PortfolioTracker {
         this.startTime = Date.now();
         this.pageName = this.getPageName();
         this.tag = 'general';
-        this.hasTrackedArrival = false; // Track if we've sent arrival data
         
         // Bind methods to preserve context
         this.handleBeforeUnload = this.handleBeforeUnload.bind(this);
@@ -19,9 +18,6 @@ class PortfolioTracker {
         
         // Set up event listeners
         this.initializeTracking();
-        
-        // Track page arrival immediately
-        this.trackPageArrival();
         
         console.log('Portfolio Tracker initialized for page:', this.pageName);
     }
@@ -110,14 +106,14 @@ class PortfolioTracker {
     /**
      * Send tracking data to the API endpoint
      */
-    sendTrackingData(forceImmediate = false) {
+    sendTrackingData() {
         const payload = this.createPayload();
         
         // Log the payload for debugging
         console.log('Sending tracking data:', payload);
         
-        // Only apply time threshold if not forcing immediate send
-        if (!forceImmediate && payload.time_on_page < 1) {
+        // Only send if user spent at least 1 second on page
+        if (payload.time_on_page < 1) {
             console.log('Skipping tracking - insufficient time on page');
             return;
         }
@@ -146,25 +142,10 @@ class PortfolioTracker {
     }
     
     /**
-     * Track page arrival immediately (for ensuring all visits are captured)
-     */
-    trackPageArrival() {
-        if (!this.hasTrackedArrival) {
-            console.log('Tracking page arrival immediately');
-            this.sendTrackingData(true); // Force immediate send
-            this.hasTrackedArrival = true;
-        }
-    }
-    
-    /**
      * Handle page unload event
      */
     handleBeforeUnload() {
-        // Only send exit tracking if we've been on the page for more than 1 second
-        // or if we haven't tracked arrival yet (fallback)
-        if (this.getTimeOnPage() >= 1 || !this.hasTrackedArrival) {
-            this.sendTrackingData();
-        }
+        this.sendTrackingData();
     }
     
     /**
@@ -172,11 +153,7 @@ class PortfolioTracker {
      */
     handleVisibilityChange() {
         if (document.visibilityState === 'hidden') {
-            // Only send exit tracking if we've been on the page for more than 1 second
-            // or if we haven't tracked arrival yet (fallback)
-            if (this.getTimeOnPage() >= 1 || !this.hasTrackedArrival) {
-                this.sendTrackingData();
-            }
+            this.sendTrackingData();
         }
     }
     
@@ -201,7 +178,7 @@ class PortfolioTracker {
      * Manually trigger tracking (useful for SPAs or custom events)
      */
     track() {
-        this.sendTrackingData(true); // Force immediate send for manual tracking
+        this.sendTrackingData();
     }
     
     /**

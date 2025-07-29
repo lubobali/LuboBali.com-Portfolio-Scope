@@ -97,7 +97,8 @@ class PortfolioTracker {
             time_on_page: this.getTimeOnPage(),
             session_id: this.sessionId,
             referrer: this.getReferrer(),
-            user_agent: this.getUserAgent()
+            user_agent: this.getUserAgent(),
+            ip: null // Include ip field as null (backend will handle IP extraction)
         };
     }
     
@@ -117,48 +118,26 @@ class PortfolioTracker {
         }
         
         try {
-            // Use sendBeacon for reliable delivery even during page unload
-            if (navigator.sendBeacon) {
-                const success = navigator.sendBeacon(
-                    this.apiEndpoint,
-                    JSON.stringify(payload)
-                );
-                
-                if (success) {
-                    console.log('Tracking data sent successfully via sendBeacon');
+            // Use fetch with proper JSON headers
+            fetch(this.apiEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+                keepalive: true // Important for requests during page unload
+            }).then(response => {
+                if (response.ok) {
+                    console.log('Tracking data sent successfully via fetch');
                 } else {
-                    console.warn('sendBeacon failed, falling back to fetch');
-                    this.fallbackSend(payload);
+                    console.warn('Failed to send tracking data:', response.status);
                 }
-            } else {
-                // Fallback for browsers that don't support sendBeacon
-                this.fallbackSend(payload);
-            }
+            }).catch(error => {
+                console.error('Fetch request failed:', error);
+            });
         } catch (error) {
             console.error('Error sending tracking data:', error);
         }
-    }
-    
-    /**
-     * Fallback method using fetch for browsers without sendBeacon support
-     */
-    fallbackSend(payload) {
-        fetch(this.apiEndpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload),
-            keepalive: true // Important for requests during page unload
-        }).then(response => {
-            if (response.ok) {
-                console.log('Tracking data sent successfully via fetch');
-            } else {
-                console.warn('Failed to send tracking data:', response.status);
-            }
-        }).catch(error => {
-            console.error('Fetch fallback failed:', error);
-        });
     }
     
     /**

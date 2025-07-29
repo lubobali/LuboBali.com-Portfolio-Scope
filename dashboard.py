@@ -142,13 +142,20 @@ if df is not None and not df.empty:
             st.markdown("### 🏆 Top Pages Performance")
             
             # Extract page data from the first (latest) record
-            latest_pages = top_pages_data.iloc[0] if not top_pages_data.empty else {}
+            latest_pages = top_pages_data.iloc[0] if not top_pages_data.empty else []
             
             if latest_pages:
-                pages_df = pd.DataFrame([
-                    {"Page": page, "Clicks": clicks} 
-                    for page, clicks in latest_pages.items()
-                ]).sort_values("Clicks", ascending=True)  # Sort for horizontal bar
+                # Handle both list and dict formats
+                if isinstance(latest_pages, list):
+                    pages_df = pd.DataFrame([
+                        {"Page": item["page"], "Clicks": item["clicks"]} 
+                        for item in latest_pages
+                    ]).sort_values("Clicks", ascending=True)  # Sort for horizontal bar
+                else:
+                    pages_df = pd.DataFrame([
+                        {"Page": page, "Clicks": clicks} 
+                        for page, clicks in latest_pages.items()
+                    ]).sort_values("Clicks", ascending=True)  # Sort for horizontal bar
                 
                 # Create horizontal bar chart
                 fig_pages = px.bar(
@@ -197,13 +204,20 @@ if df is not None and not df.empty:
             st.markdown("### 🌐 Traffic Sources")
             
             # Extract referrer data from the first (latest) record
-            latest_referrers = top_referrers_data.iloc[0] if not top_referrers_data.empty else {}
+            latest_referrers = top_referrers_data.iloc[0] if not top_referrers_data.empty else []
             
             if latest_referrers:
-                referrers_df = pd.DataFrame([
-                    {"Source": ref, "Visits": count}
-                    for ref, count in latest_referrers.items()
-                ]).sort_values("Visits", ascending=False)
+                # Handle both list and dict formats
+                if isinstance(latest_referrers, list):
+                    referrers_df = pd.DataFrame([
+                        {"Source": item["referrer"], "Visits": item["clicks"]}
+                        for item in latest_referrers
+                    ]).sort_values("Visits", ascending=False)
+                else:
+                    referrers_df = pd.DataFrame([
+                        {"Source": ref, "Visits": count}
+                        for ref, count in latest_referrers.items()
+                    ]).sort_values("Visits", ascending=False)
                 
                 # Create bar chart
                 fig_referrers = px.bar(

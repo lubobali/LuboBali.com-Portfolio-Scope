@@ -201,13 +201,7 @@ async def get_recent_clicks(limit: int = 10):
         print(f"Error fetching clicks: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch click data")
 
-# Run the application
-if __name__ == "__main__":
-    # Get port from environment variable (Railway sets this automatically)
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
-
-
+# Database test function
 def test_connection():
     """Test database connection and print success message"""
     try:

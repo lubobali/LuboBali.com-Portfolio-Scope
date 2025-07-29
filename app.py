@@ -12,7 +12,6 @@ import os
 import hashlib
 from datetime import datetime
 import uvicorn
-import asyncio
 
 # Create FastAPI app instance
 app = FastAPI(
@@ -35,26 +34,9 @@ app.add_middleware(
 async def startup_event():
     """Initialize database tables on startup"""
     print("Starting up Portfolio Click Tracker API...")
-    print(f"PORT environment variable: {os.getenv('PORT', 'Not set')}")
-    
-    # Debug: Print all database-related environment variables
-    print("=== Database Environment Variables ===")
-    for key, value in os.environ.items():
-        if 'DATABASE' in key.upper() or 'DB' in key.upper():
-            # Mask the password for security
-            if value and 'postgresql://' in value:
-                masked_value = value[:20] + "***" + value[-10:] if len(value) > 30 else "***"
-                print(f"{key}: {masked_value}")
-            else:
-                print(f"{key}: {value}")
-    print("=====================================")
-    
     try:
         create_tables()
         print("API startup complete!")
-        # Small delay to ensure everything is ready
-        await asyncio.sleep(2)
-        print("Ready to accept connections!")
     except Exception as e:
         print(f"Warning: Database initialization failed: {e}")
         print("API will start anyway - database may be created later")
@@ -73,20 +55,11 @@ class ClickEvent(BaseModel):
 def get_db_connection():
     """Create and return PostgreSQL database connection"""
     try:
-        # Try different possible database URL environment variables
-        db_url = (
-            os.getenv("DATABASE_URL") or 
-            os.getenv("DATABASE_PUBLIC_URL") or 
-            os.getenv("DB_URL") or
-            os.getenv("POSTGRES_URL") or
-            os.getenv("POSTGRESQL_URL")
-        )
-        
+        # Get database URL from environment variable (Railway provides this)
+        db_url = os.getenv("DATABASE_URL") or os.getenv("DB_URL")
         if not db_url:
-            available_vars = [k for k in os.environ.keys() if 'DATABASE' in k.upper() or 'DB' in k.upper()]
-            raise Exception(f"No database URL found. Available env vars: {available_vars}")
+            raise Exception("No database URL found in environment variables")
         
-        print(f"Using database URL from environment (first 30 chars): {db_url[:30]}...")
         conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
         return conn
     except Exception as e:
@@ -137,22 +110,7 @@ def create_tables():
 @app.get("/")
 async def root():
     """Health check endpoint"""
-    print("Health check endpoint called")
-    try:
-        # Quick DB test
-        conn = get_db_connection()
-        conn.close()
-        db_status = "connected"
-    except Exception as e:
-        print(f"DB connection failed in health check: {e}")
-        db_status = "disconnected"
-    
-    return {
-        "message": "Portfolio Click Tracker API is running", 
-        "status": "healthy",
-        "database": db_status,
-        "timestamp": datetime.now().isoformat()
-    }
+    return {"message": "Portfolio Click Tracker API is running", "status": "healthy"}
 
 # Main click tracking endpoint
 @app.post("/api/track-click")

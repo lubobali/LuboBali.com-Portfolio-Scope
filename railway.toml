@@ -1,0 +1,18 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "uvicorn app:app --host 0.0.0.0 --port $PORT"
+
+[[services]]
+name = "web"
+source = "."
+
+[[services]]
+name = "daily-aggregator-cron"
+source = "."
+cron = "0 0 * * *"
+startCommand = "python cron_daily_aggregator.py"
+
+[environments.production.services.daily-aggregator-cron]
+variables = { }

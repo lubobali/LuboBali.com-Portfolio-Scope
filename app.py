@@ -34,6 +34,7 @@ app.add_middleware(
 async def startup_event():
     """Initialize database tables on startup"""
     print("Starting up Portfolio Click Tracker API...")
+    print(f"PORT environment variable: {os.getenv('PORT', 'Not set')}")
     try:
         create_tables()
         print("API startup complete!")

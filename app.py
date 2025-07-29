@@ -36,6 +36,19 @@ async def startup_event():
     """Initialize database tables on startup"""
     print("Starting up Portfolio Click Tracker API...")
     print(f"PORT environment variable: {os.getenv('PORT', 'Not set')}")
+    
+    # Debug: Print all database-related environment variables
+    print("=== Database Environment Variables ===")
+    for key, value in os.environ.items():
+        if 'DATABASE' in key.upper() or 'DB' in key.upper():
+            # Mask the password for security
+            if value and 'postgresql://' in value:
+                masked_value = value[:20] + "***" + value[-10:] if len(value) > 30 else "***"
+                print(f"{key}: {masked_value}")
+            else:
+                print(f"{key}: {value}")
+    print("=====================================")
+    
     try:
         create_tables()
         print("API startup complete!")
@@ -60,11 +73,20 @@ class ClickEvent(BaseModel):
 def get_db_connection():
     """Create and return PostgreSQL database connection"""
     try:
-        # Get database URL from environment variable (Railway provides this)
-        db_url = os.getenv("DATABASE_URL") or os.getenv("DB_URL")
-        if not db_url:
-            raise Exception("No database URL found in environment variables")
+        # Try different possible database URL environment variables
+        db_url = (
+            os.getenv("DATABASE_URL") or 
+            os.getenv("DATABASE_PUBLIC_URL") or 
+            os.getenv("DB_URL") or
+            os.getenv("POSTGRES_URL") or
+            os.getenv("POSTGRESQL_URL")
+        )
         
+        if not db_url:
+            available_vars = [k for k in os.environ.keys() if 'DATABASE' in k.upper() or 'DB' in k.upper()]
+            raise Exception(f"No database URL found. Available env vars: {available_vars}")
+        
+        print(f"Using database URL from environment (first 30 chars): {db_url[:30]}...")
         conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
         return conn
     except Exception as e:

@@ -34,8 +34,12 @@ app.add_middleware(
 async def startup_event():
     """Initialize database tables on startup"""
     print("Starting up Portfolio Click Tracker API...")
-    create_tables()
-    print("API startup complete!")
+    try:
+        create_tables()
+        print("API startup complete!")
+    except Exception as e:
+        print(f"Warning: Database initialization failed: {e}")
+        print("API will start anyway - database may be created later")
 
 # Define Pydantic model for incoming click data
 class ClickEvent(BaseModel):
@@ -100,7 +104,7 @@ def create_tables():
         
     except Exception as e:
         print(f"Error creating tables: {e}")
-        raise
+        # Don't raise - let the app start anyway
 
 # Health check endpoint
 @app.get("/")

@@ -12,6 +12,7 @@ import os
 import hashlib
 from datetime import datetime
 import uvicorn
+import asyncio
 
 # Create FastAPI app instance
 app = FastAPI(
@@ -38,6 +39,9 @@ async def startup_event():
     try:
         create_tables()
         print("API startup complete!")
+        # Small delay to ensure everything is ready
+        await asyncio.sleep(2)
+        print("Ready to accept connections!")
     except Exception as e:
         print(f"Warning: Database initialization failed: {e}")
         print("API will start anyway - database may be created later")

@@ -4,7 +4,7 @@ Built with Streamlit - displays analytics data from lubobali.com
 """
 
 import streamlit as st
-import psycopg
+import psycopg2
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -32,7 +32,7 @@ def get_database_connection():
         if not db_url:
             db_url = "postgresql://postgres:vZDarOmyRiNkTEDOGjDkDVOWakMLxymj@yamabiko.proxy.rlwy.net:20282/railway"
         
-        conn = psycopg.connect(db_url)
+        conn = psycopg2.connect(db_url)
         return conn
     except Exception as e:
         st.error(f"Database connection failed: {e}")

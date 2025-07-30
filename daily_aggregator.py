@@ -1,153 +1,159 @@
 #!/usr/bin/env python3
 """
-Daily Click Analytics Aggregator
-Processes raw click_logs data and updates daily_click_summary table
-Designed to run automatically via Railway cron job
+Daily Analytics Aggregator for Portfolio Click Tracker
+Processes raw click_logs and creates daily summary statistics
 """
 
-import psycopg2
 import os
-import json
 import sys
+import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
+from collections import defaultdict, Counter
+import json
 
-def get_db_connection():
-    """Create and return PostgreSQL database connection"""
-    try:
-        # Get database URL from environment variable (Railway provides this)
-        db_url = os.getenv("DATABASE_URL") or os.getenv("DB_URL")
-        if not db_url:
+class DailyAggregator:
+    def __init__(self):
+        """Initialize the aggregator with database connection"""
+        self.db_url = os.getenv("DATABASE_PUBLIC_URL") or os.getenv("DATABASE_URL") or os.getenv("DB_URL")
+        if not self.db_url:
             raise Exception("No database URL found in environment variables")
+    
+    def get_db_connection(self):
+        """Create database connection"""
+        try:
+            return psycopg2.connect(self.db_url, cursor_factory=RealDictCursor)
+        except Exception as e:
+            print(f"Database connection error: {e}")
+            raise
+    
+    def aggregate_day(self, target_date):
+        """Aggregate click data for a specific date"""
+        print(f"Starting aggregation for {target_date}")
         
-        conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
-        return conn
-    except Exception as e:
-        print(f"❌ Database connection error: {e}")
-        sys.exit(1)
-
-def aggregate_daily_data(target_date=None):
-    """Aggregate click data for a specific date"""
-    
-    # Use yesterday if no date provided (for daily cron job)
-    if target_date is None:
-        target_date = (datetime.now() - timedelta(days=1)).date()
-    
-    print(f"🔄 Processing analytics for {target_date}")
-    
-    try:
-        conn = get_db_connection()
+        conn = self.get_db_connection()
         cursor = conn.cursor()
         
-        # Check if we have data for this date
-        cursor.execute("""
-            SELECT COUNT(*) as count FROM click_logs 
+        try:
+            # Get all clicks for the target date
+            query = """
+            SELECT * FROM click_logs 
             WHERE DATE(timestamp) = %s
-        """, (target_date,))
-        
-        record_count = cursor.fetchone()['count']
-        
-        if record_count == 0:
-            print(f"📊 Found 0 click records for {target_date}")
-            print(f"⚠️  No data found for {target_date}")
+            ORDER BY timestamp
+            """
+            cursor.execute(query, (target_date,))
+            clicks = cursor.fetchall()
+            
+            if not clicks:
+                print(f"No clicks found for {target_date}")
+                return
+            
+            print(f"Found {len(clicks)} clicks for {target_date}")
+            
+            # Aggregate data
+            total_clicks = len(clicks)
+            project_name = "lubobali_portfolio"  # Your main project
+            
+            # Calculate average time on page
+            times = [click['time_on_page'] for click in clicks if click['time_on_page']]
+            avg_time_on_page = sum(times) / len(times) if times else 0
+            
+            # Device split analysis
+            device_counts = defaultdict(int)
+            for click in clicks:
+                user_agent = click.get('user_agent', '').lower()
+                if 'mobile' in user_agent or 'android' in user_agent or 'iphone' in user_agent:
+                    device_counts['Mobile'] += 1
+                else:
+                    device_counts['Desktop'] += 1
+            
+            # Top referrers analysis
+            referrer_counts = defaultdict(int)
+            for click in clicks:
+                referrer = click.get('referrer', '').strip()
+                if not referrer or referrer == 'null' or referrer == '':
+                    referrer_counts['Direct Traffic'] += 1
+                else:
+                    # Clean up referrer URL
+                    if referrer.startswith('http'):
+                        referrer_counts[referrer] += 1
+                    else:
+                        referrer_counts['Direct Traffic'] += 1
+            
+            # Top pages analysis
+            page_counts = defaultdict(int)
+            for click in clicks:
+                page_name = click.get('page_name', 'unknown')
+                # Clean page names
+                if page_name.startswith('/'):
+                    page_name = page_name
+                elif not page_name.startswith('/') and page_name != 'home':
+                    page_name = f'/{page_name}'
+                elif page_name == 'home' or page_name == '':
+                    page_name = 'home'
+                page_counts[page_name] += 1
+            
+            # Count repeat visits (same session_id)
+            session_ids = [click['session_id'] for click in clicks if click.get('session_id')]
+            unique_sessions = len(set(session_ids))
+            repeat_visits = total_clicks - unique_sessions if unique_sessions > 0 else 0
+            
+            # Prepare data for insertion
+            summary_data = {
+                'date': target_date,
+                'project_name': project_name,
+                'total_clicks': total_clicks,
+                'avg_time_on_page': round(avg_time_on_page, 2),
+                'device_split': dict(device_counts),
+                'top_referrers': dict(referrer_counts),
+                'top_pages': dict(page_counts),
+                'repeat_visits': repeat_visits,
+                'tag': 'general'
+            }
+            
+            # Delete existing data for this date (if any)
+            delete_query = "DELETE FROM daily_click_summary WHERE date = %s"
+            cursor.execute(delete_query, (target_date,))
+            
+            # Insert new aggregated data
+            insert_query = """
+            INSERT INTO daily_click_summary 
+            (date, project_name, total_clicks, avg_time_on_page, device_split, 
+             top_referrers, top_pages, repeat_visits, tag, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            cursor.execute(insert_query, (
+                summary_data['date'],
+                summary_data['project_name'],
+                summary_data['total_clicks'],
+                summary_data['avg_time_on_page'],
+                json.dumps(summary_data['device_split']),
+                json.dumps(summary_data['top_referrers']),
+                json.dumps(summary_data['top_pages']),
+                summary_data['repeat_visits'],
+                summary_data['tag'],
+                datetime.now()
+            ))
+            
+            conn.commit()
+            print(f"✅ Successfully aggregated {total_clicks} clicks for {target_date}")
+            print(f"📊 Summary: {total_clicks} clicks, {len(set(session_ids))} sessions, {avg_time_on_page:.1f}s avg time")
+            
+        except Exception as e:
+            print(f"❌ Error during aggregation: {e}")
+            conn.rollback()
+            raise
+        finally:
             cursor.close()
             conn.close()
-            return False
-        
-        print(f"📊 Found {record_count} click records for {target_date}")
-        
-        # Aggregate overall stats
-        cursor.execute("""
-            SELECT 
-                COUNT(*) as total_clicks,
-                AVG(time_on_page) as avg_time_on_page,
-                COUNT(DISTINCT session_id) as repeat_visits
-            FROM click_logs 
-            WHERE DATE(timestamp) = %s
-        """, (target_date,))
-        
-        overall_stats = cursor.fetchone()
-        
-        # Get top pages
-        cursor.execute("""
-            SELECT page_name, COUNT(*) as clicks
-            FROM click_logs 
-            WHERE DATE(timestamp) = %s
-            GROUP BY page_name
-            ORDER BY clicks DESC
-            LIMIT 15
-        """, (target_date,))
-        
-        top_pages = [{'page': row['page_name'], 'clicks': row['clicks']} 
-                    for row in cursor.fetchall()]
-        
-        # Get top referrers (exclude null values)
-        cursor.execute("""
-            SELECT 
-                COALESCE(referrer, 'direct') as referrer, 
-                COUNT(*) as clicks
-            FROM click_logs 
-            WHERE DATE(timestamp) = %s
-            GROUP BY COALESCE(referrer, 'direct')
-            ORDER BY clicks DESC
-            LIMIT 10
-        """, (target_date,))
-        
-        top_referrers = [{'referrer': row['referrer'], 'clicks': row['clicks']} 
-                        for row in cursor.fetchall()]
-        
-        # Simple device split (placeholder - could be enhanced with user agent parsing)
-        device_split = {'desktop': 85, 'mobile': 15}
-        
-        # Delete existing data for this date to avoid duplicates
-        cursor.execute("DELETE FROM daily_click_summary WHERE date = %s", (target_date,))
-        
-        # Insert aggregated data
-        cursor.execute("""
-            INSERT INTO daily_click_summary (
-                date, project_name, total_clicks, avg_time_on_page, 
-                device_split, top_referrers, repeat_visits, tag, top_pages
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            target_date, 
-            'portfolio_overall', 
-            overall_stats['total_clicks'],
-            overall_stats['avg_time_on_page'], 
-            json.dumps(device_split), 
-            json.dumps(top_referrers), 
-            overall_stats['repeat_visits'], 
-            'portfolio', 
-            json.dumps(top_pages)
-        ))
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        print(f"✅ Successfully aggregated {overall_stats['total_clicks']} clicks for {target_date}")
-        print(f"📈 Top page: {top_pages[0]['page']} ({top_pages[0]['clicks']} clicks)")
-        print(f"🔄 Processed {len(top_referrers)} referrer sources")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error during aggregation: {e}")
-        return False
-
-def main():
-    """Main function - can be called directly or via cron"""
-    print("🚀 Starting Daily Analytics Aggregator")
-    print(f"⏰ Current time: {datetime.now()}")
     
-    # Process yesterday's data (default for cron job)
-    success = aggregate_daily_data()
-    
-    if success:
-        print("✅ Daily aggregation completed successfully")
-        sys.exit(0)
-    else:
-        print("⚠️  No data to process")
-        sys.exit(0)
+    def run_daily_aggregation(self, days_back=1):
+        """Run aggregation for the previous day(s)"""
+        target_date = date.today() - timedelta(days=days_back)
+        self.aggregate_day(target_date)
 
 if __name__ == "__main__":
-    main()
+    # For manual testing
+    aggregator = DailyAggregator()
+    aggregator.run_daily_aggregation(days_back=1)

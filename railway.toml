@@ -3,13 +3,3 @@ builder = "NIXPACKS"
 
 [deploy]
 startCommand = "uvicorn app:app --host 0.0.0.0 --port $PORT"
-
-# Web service (main app)
-[[services]]
-name = "web"
-startCommand = "uvicorn app:app --host 0.0.0.0 --port $PORT"
-
-# Cron job service
-[[services]]
-name = "cron"
-startCommand = "python cron_daily_aggregator.py"

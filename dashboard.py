@@ -38,7 +38,7 @@ def get_database_connection():
         st.error(f"Database connection failed: {e}")
         return None
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+@st.cache_data(ttl=1)  # Cache for 1 second to force refresh
 def load_daily_summary():
     """Load daily click summary data"""
     try:

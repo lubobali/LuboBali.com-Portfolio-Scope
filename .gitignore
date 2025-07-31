@@ -8,3 +8,8 @@ __pycache__/
 venv311/
 .DS_Store
 
+# R files (this is a Python project)
+.Rhistory
+.RData
+.Ruserdata
+

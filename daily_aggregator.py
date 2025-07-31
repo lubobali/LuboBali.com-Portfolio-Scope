@@ -15,9 +15,28 @@ import json
 class DailyAggregator:
     def __init__(self):
         """Initialize the aggregator with database connection"""
-        self.db_url = os.getenv("DATABASE_PUBLIC_URL") or os.getenv("DATABASE_URL") or os.getenv("DB_URL")
+        # Try Railway's database environment variables
+        self.db_url = (
+            os.getenv("DATABASE_URL") or 
+            os.getenv("DATABASE_PUBLIC_URL") or 
+            os.getenv("PGURL") or
+            os.getenv("DB_URL") or
+            self._build_url_from_parts()
+        )
         if not self.db_url:
             raise Exception("No database URL found in environment variables")
+    
+    def _build_url_from_parts(self):
+        """Build database URL from individual environment variables (Railway style)"""
+        host = os.getenv("PGHOST")
+        port = os.getenv("PGPORT", "5432")
+        database = os.getenv("PGDATABASE")
+        user = os.getenv("PGUSER")
+        password = os.getenv("PGPASSWORD")
+        
+        if all([host, database, user, password]):
+            return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+        return None
     
     def get_db_connection(self):
         """Create database connection"""

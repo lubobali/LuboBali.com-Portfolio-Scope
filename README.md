@@ -1,4 +1,4 @@
-# 📊 LuboBali.com: Real-Time Portfolio Analytics Pipeline
+# 📊 LuboTrack: Real-Time Portfolio Analytics Pipeline
 
 > **A full-stack analytics solution for tracking and analyzing portfolio website engagement**
 

@@ -1,0 +1,8 @@
+# Railway configuration for cron service
+# This file should be used when deploying the cron service specifically
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "python cron_daily_aggregator.py"

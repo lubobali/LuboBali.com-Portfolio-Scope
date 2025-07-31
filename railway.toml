@@ -1,16 +1,16 @@
 [build]
 builder = "NIXPACKS"
 
+# Default deployment (main web service)
 [deploy]
 startCommand = "uvicorn app:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 30"
 
-# Main web service configuration
-[[services]]
-name = "web"
-startCommand = "uvicorn app:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 30"
+# Service-specific configurations
+[environments.production.variables]
 
-# Cron service configuration
-[[services]]
-name = "cron"
+# Cron service - override start command
+[services.cron]
 startCommand = "python cron_daily_aggregator.py"
-cronSchedule = "0 0 * * *"
+
+[services.web]  
+startCommand = "uvicorn app:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 30"

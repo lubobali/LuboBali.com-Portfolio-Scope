@@ -1,5 +1,23 @@
 # FastAPI Click Tracking API for lubobali.com portfolio website
-# Accepts click events and stores them in PostgreSQL database
+# Accepts click evendef start_scheduler():
+    """Start the APScheduler for daily aggregation"""
+    try:
+        # Add the daily aggregation job
+        # TESTING: Run at 01:35 UTC (5 minutes from now) for immediate test
+        scheduler.add_job(
+            run_daily_aggregation,
+            CronTrigger(hour=1, minute=35, timezone='UTC'),
+            id='daily_aggregation',
+            name='Daily Analytics Aggregation',
+            replace_existing=True
+        )
+        
+        # Start the scheduler
+        scheduler.start()
+        print(f"📅 Scheduler configured to run daily at 01:35 UTC (TESTING - 5 min from now)")
+        
+    except Exception as e:
+        print(f"❌ Failed to start scheduler: {e}")in PostgreSQL database
 # Deployed on Railway with PostgreSQL plugin
 
 from fastapi import FastAPI, HTTPException, Request

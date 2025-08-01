@@ -86,10 +86,10 @@ def start_scheduler():
     """Start the APScheduler for daily aggregation"""
     try:
         # Add the daily aggregation job
-        # Production: Run daily at midnight UTC
+        # TESTING: Run at 02:11 UTC (5 minutes from now) for immediate test
         scheduler.add_job(
             run_daily_aggregation,
-            CronTrigger(hour=0, minute=0, timezone='UTC'),
+            CronTrigger(hour=2, minute=11, timezone='UTC'),
             id='daily_aggregation',
             name='Daily Analytics Aggregation',
             replace_existing=True
@@ -97,7 +97,7 @@ def start_scheduler():
         
         # Start the scheduler
         scheduler.start()
-        print(f"📅 Scheduler configured to run daily at 00:00 UTC (midnight)")
+        print(f"📅 Scheduler configured to run daily at 02:11 UTC (TESTING - 5 min from now)")
         
     except Exception as e:
         print(f"❌ Failed to start scheduler: {e}")

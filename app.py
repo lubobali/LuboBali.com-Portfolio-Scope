@@ -12,6 +12,10 @@ import os
 import hashlib
 from datetime import datetime
 import uvicorn
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+import asyncio
+import threading
 
 # Create FastAPI app instance
 app = FastAPI(
@@ -19,6 +23,9 @@ app = FastAPI(
     description="API to track clicks and user engagement on lubobali.com",
     version="1.0.0"
 )
+
+# Initialize scheduler
+scheduler = AsyncIOScheduler()
 
 # Add CORS middleware to allow requests from Framer website
 app.add_middleware(
@@ -32,14 +39,69 @@ app.add_middleware(
 # Startup event to create database tables
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database tables on startup"""
+    """Initialize database tables and start scheduler on startup"""
     print("Starting up Portfolio Click Tracker API...")
     try:
         create_tables()
         print("API startup complete!")
+        
+        # Start the scheduler
+        start_scheduler()
+        print("✅ Daily aggregation scheduler started!")
+        
     except Exception as e:
         print(f"Warning: Database initialization failed: {e}")
         print("API will start anyway - database may be created later")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean shutdown of scheduler"""
+    print("Shutting down scheduler...")
+    scheduler.shutdown()
+    print("✅ Scheduler stopped")
+
+def run_daily_aggregation():
+    """Function to run daily aggregation (executed by scheduler)"""
+    print(f"🕛 Starting scheduled daily aggregation at {datetime.now()}")
+    try:
+        # Import here to avoid circular imports
+        from daily_aggregator import DailyAggregator
+        
+        # Run aggregation in a separate thread to avoid blocking
+        def run_aggregation():
+            try:
+                aggregator = DailyAggregator()
+                aggregator.run_daily_aggregation(days_back=1)
+                print("✅ Scheduled aggregation completed successfully!")
+            except Exception as e:
+                print(f"❌ Scheduled aggregation failed: {e}")
+        
+        # Run in thread to avoid blocking the main event loop
+        thread = threading.Thread(target=run_aggregation)
+        thread.start()
+        
+    except Exception as e:
+        print(f"❌ Error starting scheduled aggregation: {e}")
+
+def start_scheduler():
+    """Start the APScheduler for daily aggregation"""
+    try:
+        # Add the daily aggregation job
+        # Run every day at midnight UTC
+        scheduler.add_job(
+            run_daily_aggregation,
+            CronTrigger(hour=0, minute=0, timezone='UTC'),
+            id='daily_aggregation',
+            name='Daily Analytics Aggregation',
+            replace_existing=True
+        )
+        
+        # Start the scheduler
+        scheduler.start()
+        print(f"📅 Scheduler configured to run daily at 00:00 UTC")
+        
+    except Exception as e:
+        print(f"❌ Failed to start scheduler: {e}")
 
 # Define Pydantic model for incoming click data
 class ClickEvent(BaseModel):
@@ -204,6 +266,26 @@ async def get_recent_clicks(limit: int = 10):
     except Exception as e:
         print(f"Error fetching clicks: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch click data")
+
+# Manual aggregation trigger endpoint (for testing)
+@app.post("/api/trigger-aggregation")
+async def trigger_aggregation():
+    """
+    Manually trigger daily aggregation for testing purposes
+    """
+    try:
+        print("🔧 Manual aggregation triggered via API")
+        run_daily_aggregation()
+        
+        return {
+            "success": True,
+            "message": "Daily aggregation triggered successfully",
+            "note": "Check logs for execution details"
+        }
+        
+    except Exception as e:
+        print(f"Error triggering aggregation: {e}")
+        raise HTTPException(status_code=500, detail="Failed to trigger aggregation")
 
 # Database test function
 def test_connection():

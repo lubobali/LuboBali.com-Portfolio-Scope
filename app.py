@@ -14,7 +14,6 @@ from datetime import datetime
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-import asyncio
 import threading
 
 # Create FastAPI app instance
@@ -36,7 +35,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Startup event to create database tables
+# Startup event to create database tables and start scheduler
 @app.on_event("startup")
 async def startup_event():
     """Initialize database tables and start scheduler on startup"""
@@ -87,10 +86,10 @@ def start_scheduler():
     """Start the APScheduler for daily aggregation"""
     try:
         # Add the daily aggregation job
-        # Run every day at midnight UTC
+        # Run every day at 1:00 AM UTC
         scheduler.add_job(
             run_daily_aggregation,
-            CronTrigger(hour=0, minute=0, timezone='UTC'),
+            CronTrigger(hour=1, minute=0, timezone='UTC'),
             id='daily_aggregation',
             name='Daily Analytics Aggregation',
             replace_existing=True
@@ -98,7 +97,7 @@ def start_scheduler():
         
         # Start the scheduler
         scheduler.start()
-        print(f"📅 Scheduler configured to run daily at 00:00 UTC")
+        print(f"📅 Scheduler configured to run daily at 01:00 UTC")
         
     except Exception as e:
         print(f"❌ Failed to start scheduler: {e}")

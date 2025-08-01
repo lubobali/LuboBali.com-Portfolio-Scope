@@ -1,17 +1,5 @@
 # FastAPI Click Tracking API for lubobali.com portfolio website
-# Accepts click events and         # Add the daily aggregation job
-        # TESTING: Run at 02:30 UTC (about 8 minutes from now) - aggregates both yesterday AND today
-        scheduler.add_job(
-            run_daily_aggregation,
-            CronTrigger(hour=2, minute=30, timezone='UTC'),
-            id='daily_aggregation',
-            name='Daily Analytics Aggregation',
-            replace_existing=True
-        )
-        
-        # Start the scheduler
-        scheduler.start()
-        print(f"📅 Scheduler configured to run daily at 02:30 UTC (TESTING - aggregates yesterday + today)")n PostgreSQL database
+# Accepts click events and stores them in PostgreSQL database
 # Deployed on Railway with PostgreSQL plugin
 
 from fastapi import FastAPI, HTTPException, Request
@@ -102,10 +90,10 @@ def start_scheduler():
     """Start the APScheduler for daily aggregation"""
     try:
         # Add the daily aggregation job
-        # TESTING: Run at 02:25 UTC (6 minutes from now) - aggregates both yesterday AND today
+        # TESTING: Run at 02:40 UTC - aggregates both yesterday AND today
         scheduler.add_job(
             run_daily_aggregation,
-            CronTrigger(hour=2, minute=30, timezone='UTC'),
+            CronTrigger(hour=2, minute=40, timezone='UTC'),
             id='daily_aggregation',
             name='Daily Analytics Aggregation',
             replace_existing=True
@@ -113,7 +101,7 @@ def start_scheduler():
         
         # Start the scheduler
         scheduler.start()
-        print(f"📅 Scheduler configured to run daily at 02:25 UTC (TESTING - aggregates yesterday + today)")
+        print(f"📅 Scheduler configured to run daily at 02:40 UTC (TESTING - aggregates yesterday + today)")
         
     except Exception as e:
         print(f"❌ Failed to start scheduler: {e}")

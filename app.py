@@ -70,7 +70,11 @@ def run_daily_aggregation():
         def run_aggregation():
             try:
                 aggregator = DailyAggregator()
-                aggregator.run_daily_aggregation(days_back=1)
+                # Aggregate both yesterday AND today to catch all recent clicks
+                print("📊 Aggregating yesterday's data...")
+                aggregator.run_daily_aggregation(days_back=1)  # Yesterday
+                print("📊 Aggregating today's data...")
+                aggregator.run_daily_aggregation(days_back=0)  # Today
                 print("✅ Scheduled aggregation completed successfully!")
             except Exception as e:
                 print(f"❌ Scheduled aggregation failed: {e}")
@@ -86,10 +90,10 @@ def start_scheduler():
     """Start the APScheduler for daily aggregation"""
     try:
         # Add the daily aggregation job
-        # TESTING: Run at 02:11 UTC (5 minutes from now) for immediate test
+        # TESTING: Run at 02:18 UTC (5 minutes from now) - aggregates both yesterday AND today
         scheduler.add_job(
             run_daily_aggregation,
-            CronTrigger(hour=2, minute=11, timezone='UTC'),
+            CronTrigger(hour=2, minute=18, timezone='UTC'),
             id='daily_aggregation',
             name='Daily Analytics Aggregation',
             replace_existing=True
@@ -97,7 +101,7 @@ def start_scheduler():
         
         # Start the scheduler
         scheduler.start()
-        print(f"📅 Scheduler configured to run daily at 02:11 UTC (TESTING - 5 min from now)")
+        print(f"📅 Scheduler configured to run daily at 02:18 UTC (TESTING - aggregates yesterday + today)")
         
     except Exception as e:
         print(f"❌ Failed to start scheduler: {e}")

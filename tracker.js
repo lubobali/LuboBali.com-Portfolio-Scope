@@ -65,10 +65,8 @@
         }
         
         initializePage() {
-            // Send exit for previous page if needed
-            if (this.currentPageName && !this.sentExit) {
-                this.trackExit();
-            }
+            // DON'T send exit immediately on navigation
+            // Only track exits when user actually leaves
             
             // Reset for new page
             this.currentPageName = this.getPageName();
@@ -140,7 +138,9 @@
             if (this.sentExit) {
                 return;
             }
-            if (this.getTimeOnPage() < 1) {
+            // Require at least 3 seconds on page before sending exit
+            if (this.getTimeOnPage() < 3) {
+                console.log('TRACKER: Exit blocked - insufficient time');
                 return;
             }
             this.sentExit = true;

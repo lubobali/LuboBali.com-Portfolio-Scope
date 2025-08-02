@@ -1,234 +1,195 @@
 /**
- * Portfolio Click Tracker for lubobali.com
- * Collects user engagement data and sends to FastAPI backend
- * Uses fetch for reliable data transmission
+ * Portfolio Click Tracker - Production Version
+ * Tracks user engagement across SPA navigation
  */
 
-class PortfolioTracker {
-    constructor(apiEndpoint = 'https://lubo-portfolio-tracker-production.up.railway.app/api/track-click') {
-        this.apiEndpoint = apiEndpoint;
-        this.sessionId = this.getOrCreateSessionId();
-        this.startTime = Date.now();
-        this.pageName = this.getPageName();
-        this.tag = 'general';
-        this.hasTrackedArrival = false; // Track if we've sent arrival data
-        
-        // Bind methods to preserve context
-        this.handleBeforeUnload = this.handleBeforeUnload.bind(this);
-        this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
-        
-        // Set up event listeners
-        this.initializeTracking();
-        
-        // Track page arrival immediately
-        this.trackPageArrival();
-        
-        console.log('Portfolio Tracker initialized for page:', this.pageName);
+(function() {
+    'use strict';
+    
+    // Prevent duplicate tracker instances
+    if (window.TRACKER_LOADED) {
+        console.log('TRACKER: Already loaded, skipping');
+        return;
+    }
+    window.TRACKER_LOADED = true;
+    console.log('TRACKER: Production tracker initialized');
+    
+    // Track sent requests to prevent duplicates
+    const sentRequests = new Set();
+    
+    function generateRequestId(pageName, timeOnPage, eventType) {
+        return `${pageName}-${eventType}-${Math.floor(timeOnPage/5)*5}`;
     }
     
-    /**
-     * Get or create a unique session ID stored in localStorage
-     */
-    getOrCreateSessionId() {
-        const storageKey = 'portfolio_session_id';
-        let sessionId = localStorage.getItem(storageKey);
-        
-        if (!sessionId) {
-            // Generate a unique session ID
-            sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem(storageKey, sessionId);
+    class PortfolioTracker {
+        constructor() {
+            if (window.trackerInstance) {
+                console.log('TRACKER: Using existing instance');
+                return window.trackerInstance;
+            }
+            
+            console.log('TRACKER: Creating new instance');
+            this.apiEndpoint = 'https://lubo-portfolio-tracker-production.up.railway.app/api/track-click';
+            this.sessionId = this.getSessionId();
+            this.currentPageName = null;
+            this.startTime = null;
+            this.sentArrival = false;
+            this.sentExit = false;
+            this.requestInProgress = false;
+            
+            // Initialize for current page
+            this.initializePage();
+            
+            // Set up SPA navigation detection
+            this.setupSPADetection();
+            
+            window.trackerInstance = this;
         }
         
-        return sessionId;
-    }
-    
-    /**
-     * Extract page name from current URL (pathname + search) or document title
-     */
-    getPageName() {
-        // Get both pathname and search parameters
-        const pathname = window.location.pathname;
-        const search = window.location.search;
-        
-        // Combine pathname and search parameters
-        let fullPath = pathname + search;
-        
-        // If it's the root path, return 'home'
-        if (fullPath === '/' || fullPath === '' || fullPath === '/index') {
-            return 'home';
+        getSessionId() {
+            let sessionId = localStorage.getItem('portfolio_session_id');
+            if (!sessionId) {
+                sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('portfolio_session_id', sessionId);
+            }
+            return sessionId;
         }
         
-        // Keep the original path structure but ensure it starts with /
-        let pageName = fullPath;
-        if (!pageName.startsWith('/')) {
-            pageName = '/' + pageName;
+        getPageName() {
+            const path = window.location.pathname + window.location.search;
+            return path === '/' ? 'home' : path;
         }
         
-        // Only do minimal sanitization - remove trailing slashes and clean up
-        pageName = pageName.replace(/\/+$/, ''); // Remove trailing slashes
-        pageName = pageName.replace(/\/+/g, '/'); // Replace multiple slashes with single slash
-        
-        return pageName || '/unknown';
-    }
-    
-    /**
-     * Calculate time spent on page in seconds
-     */
-    getTimeOnPage() {
-        return Math.round((Date.now() - this.startTime) / 1000);
-    }
-    
-    /**
-     * Get referrer URL with fallback
-     */
-    getReferrer() {
-        return document.referrer || 'direct';
-    }
-    
-    /**
-     * Get user agent string
-     */
-    getUserAgent() {
-        return navigator.userAgent || 'unknown';
-    }
-    
-    /**
-     * Create the data payload to send to API
-     */
-    createPayload() {
-        return {
-            page_name: this.pageName,
-            tag: this.tag,
-            time_on_page: this.getTimeOnPage(),
-            session_id: this.sessionId,
-            referrer: this.getReferrer(),
-            user_agent: this.getUserAgent(),
-            ip: null // Include ip field as null (backend will handle IP extraction)
-        };
-    }
-    
-    /**
-     * Send tracking data to the API endpoint
-     */
-    sendTrackingData(forceImmediate = false) {
-        const payload = this.createPayload();
-        
-        // Log the payload for debugging
-        console.log('Sending tracking data:', payload);
-        
-        // Only apply time threshold if not forcing immediate send
-        if (!forceImmediate && payload.time_on_page < 1) {
-            console.log('Skipping tracking - insufficient time on page');
-            return;
+        getTimeOnPage() {
+            return this.startTime ? Math.round((Date.now() - this.startTime) / 1000) : 0;
         }
         
-        try {
-            // Use fetch with proper JSON headers
-            fetch(this.apiEndpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
-                keepalive: true // Important for requests during page unload
-            }).then(response => {
-                if (response.ok) {
-                    console.log('Tracking data sent successfully via fetch');
-                } else {
-                    console.warn('Failed to send tracking data:', response.status);
-                }
-            }).catch(error => {
-                console.error('Fetch request failed:', error);
-            });
-        } catch (error) {
-            console.error('Error sending tracking data:', error);
+        initializePage() {
+            // Send exit for previous page if needed
+            if (this.currentPageName && !this.sentExit) {
+                this.trackExit();
+            }
+            
+            // Reset for new page
+            this.currentPageName = this.getPageName();
+            this.startTime = Date.now();
+            this.sentArrival = false;
+            this.sentExit = false;
+            
+            // Track arrival for new page
+            this.trackArrival();
+            
+            // Set up exit listeners for this page
+            this.setupExitListeners();
         }
-    }
-    
-    /**
-     * Track page arrival immediately (for ensuring all visits are captured)
-     */
-    trackPageArrival() {
-        if (!this.hasTrackedArrival) {
-            console.log('Tracking page arrival immediately');
-            this.sendTrackingData(true); // Force immediate send
-            this.hasTrackedArrival = true;
-        }
-    }
-    
-    /**
-     * Handle page unload event
-     */
-    handleBeforeUnload() {
-        // Only send exit tracking if we've been on the page for more than 1 second
-        // or if we haven't tracked arrival yet (fallback)
-        if (this.getTimeOnPage() >= 1 || !this.hasTrackedArrival) {
-            this.sendTrackingData();
-        }
-    }
-    
-    /**
-     * Handle visibility change (tab switch, minimize, etc.)
-     */
-    handleVisibilityChange() {
-        if (document.visibilityState === 'hidden') {
-            // Only send exit tracking if we've been on the page for more than 1 second
-            // or if we haven't tracked arrival yet (fallback)
-            if (this.getTimeOnPage() >= 1 || !this.hasTrackedArrival) {
-                this.sendTrackingData();
+        
+        async sendRequest(eventType) {
+            const timeOnPage = this.getTimeOnPage();
+            const requestId = generateRequestId(this.currentPageName, timeOnPage, eventType);
+            
+            // Prevent duplicate requests
+            if (sentRequests.has(requestId)) {
+                console.log('TRACKER: Duplicate request blocked');
+                return;
+            }
+            
+            if (this.requestInProgress) {
+                console.log('TRACKER: Request in progress, blocking');
+                return;
+            }
+            
+            console.log(`TRACKER: Sending ${eventType} for ${this.currentPageName}`);
+            
+            this.requestInProgress = true;
+            sentRequests.add(requestId);
+            
+            const payload = {
+                page_name: this.currentPageName,
+                tag: eventType, // Clean tags: 'arrival' or 'exit'
+                time_on_page: timeOnPage,
+                session_id: this.sessionId,
+                referrer: document.referrer || 'direct',
+                user_agent: navigator.userAgent,
+                ip: null
+            };
+            
+            try {
+                await fetch(this.apiEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    keepalive: true
+                });
+                console.log(`TRACKER: ${eventType} sent successfully`);
+            } catch (error) {
+                console.error('TRACKER: Request failed', error);
+            } finally {
+                this.requestInProgress = false;
             }
         }
-    }
-    
-    /**
-     * Initialize event listeners for tracking
-     */
-    initializeTracking() {
-        // Track when user leaves the page
-        window.addEventListener('beforeunload', this.handleBeforeUnload);
         
-        // Track when user switches tabs or minimizes window
-        document.addEventListener('visibilitychange', this.handleVisibilityChange);
+        trackArrival() {
+            if (this.sentArrival) {
+                return;
+            }
+            this.sentArrival = true;
+            this.sendRequest('arrival');
+        }
         
-        // Track when page loses focus (additional safety net)
-        window.addEventListener('blur', this.handleBeforeUnload);
+        trackExit() {
+            if (this.sentExit) {
+                return;
+            }
+            if (this.getTimeOnPage() < 1) {
+                return;
+            }
+            this.sentExit = true;
+            this.sendRequest('exit');
+        }
         
-        // For single-page applications, you might want to track route changes
-        // window.addEventListener('popstate', this.handleBeforeUnload);
+        setupExitListeners() {
+            // Remove old listeners
+            if (this.exitHandler) {
+                window.removeEventListener('beforeunload', this.exitHandler);
+                document.removeEventListener('visibilitychange', this.visibilityHandler);
+            }
+            
+            // Create new handlers
+            this.exitHandler = () => {
+                this.trackExit();
+            };
+            
+            this.visibilityHandler = () => {
+                if (document.visibilityState === 'hidden') {
+                    this.trackExit();
+                }
+            };
+            
+            // Add fresh listeners
+            window.addEventListener('beforeunload', this.exitHandler);
+            document.addEventListener('visibilitychange', this.visibilityHandler);
+        }
+        
+        setupSPADetection() {
+            let currentUrl = window.location.href;
+            
+            // Check for URL changes every 500ms
+            setInterval(() => {
+                if (window.location.href !== currentUrl) {
+                    currentUrl = window.location.href;
+                    this.initializePage();
+                }
+            }, 500);
+            
+            // Also listen for popstate (back/forward buttons)
+            window.addEventListener('popstate', () => {
+                setTimeout(() => this.initializePage(), 100);
+            });
+        }
     }
     
-    /**
-     * Manually trigger tracking (useful for SPAs or custom events)
-     */
-    track() {
-        this.sendTrackingData(true); // Force immediate send for manual tracking
-    }
+    // Initialize tracker
+    const tracker = new PortfolioTracker();
+    window.portfolioTracker = tracker;
     
-    /**
-     * Update the tag for more specific tracking
-     */
-    setTag(newTag) {
-        this.tag = newTag || 'general';
-    }
-    
-    /**
-     * Clean up event listeners (call when tracker is no longer needed)
-     */
-    destroy() {
-        window.removeEventListener('beforeunload', this.handleBeforeUnload);
-        document.removeEventListener('visibilitychange', this.handleVisibilityChange);
-        window.removeEventListener('blur', this.handleBeforeUnload);
-    }
-}
-
-// Auto-initialize the tracker when script loads
-// You can customize the API endpoint here
-const tracker = new PortfolioTracker('https://lubo-portfolio-tracker-production.up.railway.app/api/track-click');
-
-// Expose tracker globally for manual tracking if needed
-window.portfolioTracker = tracker;
-
-// Export for module systems
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = PortfolioTracker;
-}
+})();

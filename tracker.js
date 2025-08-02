@@ -65,12 +65,7 @@
         }
         
         initializePage() {
-            // Send exit for previous page if needed
-            if (this.currentPageName && !this.sentExit) {
-                this.trackExit();
-            }
-            
-            // Reset for new page
+            // Reset for new page (don't send premature exits)
             this.currentPageName = this.getPageName();
             this.startTime = Date.now();
             this.sentArrival = false;

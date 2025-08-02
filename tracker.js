@@ -65,7 +65,7 @@
         }
         
         initializePage() {
-            // Reset for new page (don't send premature exits)
+            // Reset for new page (remove premature exit tracking)
             this.currentPageName = this.getPageName();
             this.startTime = Date.now();
             this.sentArrival = false;
@@ -143,10 +143,6 @@
         }
         
         setupExitListeners() {
-            // TEMPORARILY DISABLE EXIT LISTENERS FOR DEBUGGING
-            console.log('TRACKER: Exit listeners disabled for debugging');
-            return;
-            
             // Remove old listeners
             if (this.exitHandler) {
                 window.removeEventListener('beforeunload', this.exitHandler);

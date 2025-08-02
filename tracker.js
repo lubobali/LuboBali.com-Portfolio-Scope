@@ -143,6 +143,10 @@
         }
         
         setupExitListeners() {
+            // TEMPORARILY DISABLE EXIT LISTENERS FOR DEBUGGING
+            console.log('TRACKER: Exit listeners disabled for debugging');
+            return;
+            
             // Remove old listeners
             if (this.exitHandler) {
                 window.removeEventListener('beforeunload', this.exitHandler);

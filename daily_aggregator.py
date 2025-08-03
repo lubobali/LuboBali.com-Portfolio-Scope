@@ -67,53 +67,61 @@ class DailyAggregator:
                 print(f"No clicks found for {target_date}")
                 return
             
-            print(f"Found {len(clicks)} clicks for {target_date}")
+            print(f"Found {len(clicks)} raw click events for {target_date}")
+            print(f"Deduplicating to unique pageviews (collapsing arrival+exit events)...")
             
-            # Aggregate data
-            total_clicks = len(clicks)
+            # --- NEW: collapse arrival+exit to one pageview per (session_id, page_name) ---
+            pageviews = {}
+            first_event_for_referrer = {}
+            
+            for c in clicks:
+                key = (c.get('session_id'), c.get('page_name'))
+                # keep first event for referrer (usually arrival)
+                if key not in first_event_for_referrer:
+                    first_event_for_referrer[key] = c
+                prev = pageviews.get(key)
+                # choose the event with the larger time_on_page (exit > arrival)
+                cur_time = c.get('time_on_page') or 0
+                prev_time = (prev.get('time_on_page') or 0) if prev else -1
+                if prev is None or cur_time > prev_time:
+                    pageviews[key] = c
+            
+            # Use deduped pageviews for metrics
+            total_clicks = len(pageviews)  # unique pageviews, not raw rows
             project_name = "lubobali_portfolio"  # Your main project
             
-            # Calculate average time on page
-            times = [click['time_on_page'] for click in clicks if click['time_on_page']]
-            avg_time_on_page = sum(times) / len(times) if times else 0
+            times = [pv.get('time_on_page') or 0 for pv in pageviews.values() if (pv.get('time_on_page') or 0) > 0]
+            avg_time_on_page = round(sum(times) / len(times), 2) if times else 0
             
-            # Device split analysis
-            device_counts = defaultdict(int)
-            for click in clicks:
-                user_agent = click.get('user_agent', '').lower()
-                if 'mobile' in user_agent or 'android' in user_agent or 'iphone' in user_agent:
+            # Device split (from chosen pageview event)
+            device_counts = {"Mobile": 0, "Desktop": 0}
+            for pv in pageviews.values():
+                ua = (pv.get('user_agent') or '').lower()
+                if 'mobile' in ua or 'android' in ua or 'iphone' in ua:
                     device_counts['Mobile'] += 1
                 else:
                     device_counts['Desktop'] += 1
             
-            # Top referrers analysis
-            referrer_counts = defaultdict(int)
-            for click in clicks:
-                referrer = click.get('referrer', '').strip()
-                if not referrer or referrer == 'null' or referrer == '':
-                    referrer_counts['Direct Traffic'] += 1
-                else:
-                    # Clean up referrer URL
-                    if referrer.startswith('http'):
-                        referrer_counts[referrer] += 1
-                    else:
-                        referrer_counts['Direct Traffic'] += 1
+            # Top referrers (prefer the first event per pageview, i.e., the arrival)
+            referrer_counts = {}
+            for key, first in first_event_for_referrer.items():
+                referrer = (first.get('referrer') or '').strip()
+                if not referrer or referrer == 'null':
+                    referrer = 'Direct Traffic'
+                elif not referrer.startswith('http'):
+                    referrer = 'Direct Traffic'
+                referrer_counts[referrer] = referrer_counts.get(referrer, 0) + 1
             
-            # Top pages analysis
-            page_counts = defaultdict(int)
-            for click in clicks:
-                page_name = click.get('page_name', 'unknown')
-                # Clean page names
-                if page_name.startswith('/'):
-                    page_name = page_name
-                elif not page_name.startswith('/') and page_name != 'home':
-                    page_name = f'/{page_name}'
-                elif page_name == 'home' or page_name == '':
-                    page_name = 'home'
-                page_counts[page_name] += 1
+            # Top pages from chosen pageviews
+            page_counts = {}
+            for pv in pageviews.values():
+                page_name = pv.get('page_name', 'unknown') or 'unknown'
+                if page_name == '' or page_name == 'home': page_name = 'home'
+                elif not page_name.startswith('/') and page_name != 'home': page_name = f'/{page_name}'
+                page_counts[page_name] = page_counts.get(page_name, 0) + 1
             
-            # Count repeat visits (same session_id)
-            session_ids = [click['session_id'] for click in clicks if click.get('session_id')]
+            # Repeat visits based on unique sessions
+            session_ids = [sid for (sid, _page) in pageviews.keys() if sid]
             unique_sessions = len(set(session_ids))
             repeat_visits = total_clicks - unique_sessions if unique_sessions > 0 else 0
             
@@ -156,8 +164,8 @@ class DailyAggregator:
             ))
             
             conn.commit()
-            print(f"✅ Successfully aggregated {total_clicks} clicks for {target_date}")
-            print(f"📊 Summary: {total_clicks} clicks, {len(set(session_ids))} sessions, {avg_time_on_page:.1f}s avg time")
+            print(f"✅ Successfully aggregated {len(clicks)} raw events → {total_clicks} unique pageviews for {target_date}")
+            print(f"📊 Summary: {total_clicks} pageviews, {len(set(session_ids))} sessions, {avg_time_on_page:.1f}s avg time")
             
         except Exception as e:
             print(f"❌ Error during aggregation: {e}")
